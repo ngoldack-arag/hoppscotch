@@ -1,5 +1,5 @@
-import { authEvents$, def as platformAuth } from "@platform/auth/auth.platform"
 import { CollectionsPlatformDef } from "@hoppscotch/common/platform/collections"
+import { authEvents$, def as platformAuth } from "@platform/auth/auth.platform"
 import { runDispatchWithOutSyncing } from "../../lib/sync"
 
 import {
@@ -16,44 +16,54 @@ import {
 } from "./collections.api"
 import { collectionsSyncer, getStoreByCollectionType } from "./collections.sync"
 
-import * as E from "fp-ts/Either"
 import {
-  addRESTCollection,
-  setRESTCollections,
-  editRESTCollection,
-  removeRESTCollection,
-  moveRESTFolder,
-  updateRESTCollectionOrder,
-  saveRESTRequestAs,
-  navigateToFolderWithIndexPath,
-  editRESTRequest,
-  removeRESTRequest,
-  moveRESTRequest,
-  updateRESTRequestOrder,
-  addRESTFolder,
-  editRESTFolder,
-  removeRESTFolder,
-  addGraphqlFolder,
+  runGQLQuery,
+  runGQLSubscription,
+} from "@hoppscotch/common/helpers/backend/GQLClient"
+import {
   addGraphqlCollection,
-  editGraphqlFolder,
+  addGraphqlFolder,
+  addRESTCollection,
+  addRESTFolder,
   editGraphqlCollection,
-  removeGraphqlFolder,
-  removeGraphqlCollection,
-  saveGraphqlRequestAs,
+  editGraphqlFolder,
   editGraphqlRequest,
+  editRESTCollection,
+  editRESTFolder,
+  editRESTRequest,
   moveGraphqlRequest,
+  moveRESTFolder,
+  moveRESTRequest,
+  navigateToFolderWithIndexPath,
+  removeGraphqlCollection,
+  removeGraphqlFolder,
   removeGraphqlRequest,
-  setGraphqlCollections,
+  removeRESTCollection,
+  removeRESTFolder,
+  removeRESTRequest,
   restCollectionStore,
+  saveGraphqlRequestAs,
+  saveRESTRequestAs,
+  setGraphqlCollections,
+  setRESTCollections,
+  updateRESTCollectionOrder,
+  updateRESTRequestOrder,
 } from "@hoppscotch/common/newstore/collections"
-import { runGQLSubscription } from "@hoppscotch/common/helpers/backend/GQLClient"
 import {
+  GQLHeader,
   HoppCollection,
   HoppGQLRequest,
+  HoppRESTHeader,
   HoppRESTRequest,
 } from "@hoppscotch/data"
+import * as E from "fp-ts/Either"
+import {
+  ExportUserCollectionsToJsonDocument,
+  ExportUserCollectionsToJsonQuery,
+  ExportUserCollectionsToJsonQueryVariables,
+  ReqType,
+} from "../../api/generated/graphql"
 import { gqlCollectionsSyncer } from "./gqlCollections.sync"
-import { ReqType } from "../../api/generated/graphql"
 
 function initCollectionsSync() {
   const currentUser$ = platformAuth.getCurrentUserStream()
@@ -113,9 +123,10 @@ function exportedCollectionToHoppCollection(
             auth: { authType: "inherit", authActive: false },
             headers: [],
           }
+
     return {
       id: restCollection.id,
-      v: 2,
+      v: 3,
       name: restCollection.name,
       folders: restCollection.folders.map((folder) =>
         exportedCollectionToHoppCollection(folder, collectionType)
@@ -156,7 +167,11 @@ function exportedCollectionToHoppCollection(
         }
       }),
       auth: data.auth,
-      headers: data.headers,
+      headers:
+        data.headers?.map((headers: HoppRESTHeader) => ({
+          ...headers,
+          description: "description" in headers ? headers.description : "",
+        })) ?? [],
     }
   } else {
     const gqlCollection = collection as ExportedUserCollectionGQL
@@ -170,7 +185,7 @@ function exportedCollectionToHoppCollection(
 
     return {
       id: gqlCollection.id,
-      v: 2,
+      v: 3,
       name: gqlCollection.name,
       folders: gqlCollection.folders.map((folder) =>
         exportedCollectionToHoppCollection(folder, collectionType)
@@ -188,7 +203,11 @@ function exportedCollectionToHoppCollection(
         })
       ) as HoppGQLRequest[],
       auth: data.auth,
-      headers: data.headers,
+      headers:
+        data.headers?.map((headers: GQLHeader) => ({
+          ...headers,
+          description: "description" in headers ? headers.description : "",
+        })) ?? [],
     }
   }
 }
@@ -265,7 +284,7 @@ function setupUserCollectionCreatedSubscription() {
   const [userCollectionCreated$, userCollectionCreatedSub] =
     runUserCollectionCreatedSubscription()
 
-  userCollectionCreated$.subscribe((res) => {
+  userCollectionCreated$.subscribe(async (res) => {
     if (E.isRight(res)) {
       const collectionType = res.right.userCollectionCreated.type
 
@@ -287,7 +306,7 @@ function setupUserCollectionCreatedSubscription() {
       // While duplicating a collection, the new entry added to the store has an ID with a suffix to be updated after the backend ID is received from the GQL subscription
       // This is to prevent the new entry from being added to the store again when the GQL subscription
       // The boolean return value indicates if the GQL subscription was fired because of a duplicate collection action and whether the collection should be added to the store
-      const shouldCreateCollection = issueBackendIDToDuplicatedCollection(
+      const shouldCreateCollection = await issueBackendIDToDuplicatedCollection(
         collectionStore,
         collectionType,
         userCollectionBackendID,
@@ -349,7 +368,7 @@ function setupUserCollectionCreatedSubscription() {
                 name: res.right.userCollectionCreated.title,
                 folders: [],
                 requests: [],
-                v: 2,
+                v: 3,
                 auth: data.auth,
                 headers: data.headers,
               })
@@ -357,7 +376,7 @@ function setupUserCollectionCreatedSubscription() {
                 name: res.right.userCollectionCreated.title,
                 folders: [],
                 requests: [],
-                v: 2,
+                v: 3,
                 auth: data.auth,
                 headers: data?.headers,
               })
@@ -843,14 +862,14 @@ function getRequestIndex(
   return requestIndex
 }
 
-function issueBackendIDToDuplicatedCollection(
+async function issueBackendIDToDuplicatedCollection(
   collectionStore: ReturnType<
     typeof getStoreByCollectionType
   >["collectionStore"],
   collectionType: ReqType,
   userCollectionBackendID: string,
   parentCollectionID?: string
-): boolean {
+): Promise<boolean> {
   // Collection added to store via duplicating is set an ID with a suffix to be updated after the backend ID is received from the GQL subscription
   const collectionCreatedFromStoreIDSuffix = "-duplicate-collection"
 
@@ -888,23 +907,50 @@ function issueBackendIDToDuplicatedCollection(
       // Indicates the collection received from the GQL subscription should be created in the store
       return true
     }
-    const collectionInsertedViaStoreUpdate =
-      parentCollection.folders[collectionInsertedViaStoreUpdateIdx]
+
+    const exportUserCollectionsToJsonResult = await runGQLQuery<
+      ExportUserCollectionsToJsonQuery,
+      ExportUserCollectionsToJsonQueryVariables,
+      ""
+    >({
+      query: ExportUserCollectionsToJsonDocument,
+      variables: { collectionID: userCollectionBackendID, collectionType },
+    })
+
+    if (E.isLeft(exportUserCollectionsToJsonResult)) {
+      return false
+    }
+
+    const exportedCollection = JSON.parse(
+      exportUserCollectionsToJsonResult.right.exportUserCollectionsToJSON
+        .exportedCollection
+    )
+
+    const resolvedCollection = exportedCollectionToHoppCollection(
+      exportedCollection,
+      collectionType
+    )
 
     const childCollectionPath = `${parentCollectionPath}/${collectionInsertedViaStoreUpdateIdx}`
 
     // Update the ID for the child collection already existing in store with the backend ID
     runDispatchWithOutSyncing(() => {
       if (collectionType == ReqType.Rest) {
-        editRESTFolder(childCollectionPath, {
-          ...collectionInsertedViaStoreUpdate,
-          id: userCollectionBackendID,
-        })
+        // Remove the existing collection persisting in the store
+        removeRESTFolder(childCollectionPath)
+
+        // Add the new collection from the GQL query
+        addRESTFolder(resolvedCollection.name, parentCollectionPath)
+
+        editRESTFolder(childCollectionPath, resolvedCollection)
       } else {
-        editGraphqlFolder(childCollectionPath, {
-          ...collectionInsertedViaStoreUpdate,
-          id: userCollectionBackendID,
-        })
+        // Remove the existing collection persisting in the store
+        removeGraphqlFolder(childCollectionPath)
+
+        // Add the new collection from the GQL query
+        addGraphqlFolder(resolvedCollection.name, parentCollectionPath)
+
+        editGraphqlFolder(childCollectionPath, resolvedCollection)
       }
     })
   } else {
@@ -922,21 +968,43 @@ function issueBackendIDToDuplicatedCollection(
       return true
     }
 
-    const collectionInsertedViaStoreUpdate =
-      collectionStore.value.state[collectionInsertedViaStoreUpdateIdx]
+    const exportUserCollectionsToJsonResult = await runGQLQuery<
+      ExportUserCollectionsToJsonQuery,
+      ExportUserCollectionsToJsonQueryVariables,
+      ""
+    >({
+      query: ExportUserCollectionsToJsonDocument,
+      variables: { collectionID: userCollectionBackendID, collectionType },
+    })
+
+    if (E.isLeft(exportUserCollectionsToJsonResult)) {
+      return false
+    }
+
+    const exportedCollection = JSON.parse(
+      exportUserCollectionsToJsonResult.right.exportUserCollectionsToJSON
+        .exportedCollection
+    )
+
+    const resolvedCollection = exportedCollectionToHoppCollection(
+      exportedCollection,
+      collectionType
+    )
 
     // Update the ID for the collection already existing in store with the backend ID
     runDispatchWithOutSyncing(() => {
       if (collectionType == ReqType.Rest) {
-        editRESTCollection(collectionInsertedViaStoreUpdateIdx, {
-          ...collectionInsertedViaStoreUpdate,
-          id: userCollectionBackendID,
-        })
+        // Remove the existing collection persisting in the store
+        removeRESTCollection(collectionInsertedViaStoreUpdateIdx)
+
+        // Add the new collection from the GQL query
+        addRESTCollection(resolvedCollection)
       } else {
-        editGraphqlCollection(collectionInsertedViaStoreUpdateIdx, {
-          ...collectionInsertedViaStoreUpdate,
-          id: userCollectionBackendID,
-        })
+        // Remove the existing collection persisting in the store
+        removeGraphqlCollection(collectionInsertedViaStoreUpdateIdx)
+
+        // Add the new collection from the GQL query
+        addGraphqlCollection(resolvedCollection)
       }
     })
   }

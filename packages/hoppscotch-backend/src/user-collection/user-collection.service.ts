@@ -963,7 +963,7 @@ export class UserCollectionService {
               ...(x.request as Record<string, unknown>), // type casting x.request of type Prisma.JSONValue to an object to enable spread
             };
           }),
-          data: JSON.stringify(parentCollection.right.data),
+          data: transformCollectionData(parentCollection.right.data),
         }),
         collectionType: parentCollection.right.type,
       });

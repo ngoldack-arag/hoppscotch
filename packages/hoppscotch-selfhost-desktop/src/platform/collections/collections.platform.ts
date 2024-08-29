@@ -306,13 +306,23 @@ function setupUserCollectionCreatedSubscription() {
                 name: res.right.userCollectionCreated.title,
                 folders: [],
                 requests: [],
-                v: 1,
+                v: 3,
+                auth: {
+                  authActive: false,
+                  authType: "none",
+                },
+                headers: [],
               })
             : addRESTCollection({
                 name: res.right.userCollectionCreated.title,
                 folders: [],
                 requests: [],
-                v: 1,
+                v: 3,
+                auth: {
+                  authActive: false,
+                  authType: "none",
+                },
+                headers: [],
               })
 
           const localIndex = collectionStore.value.state.length - 1
