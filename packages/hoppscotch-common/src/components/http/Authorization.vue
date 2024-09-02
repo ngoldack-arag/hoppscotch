@@ -184,7 +184,11 @@ import IconHelpCircle from "~icons/lucide/help-circle"
 import IconTrash2 from "~icons/lucide/trash-2"
 
 import { getDefaultAuthCodeOauthFlowParams } from "~/services/oauth/flows/authCode"
-import { HoppRESTAuth, HoppRESTAuthOAuth2 } from "@hoppscotch/data"
+import {
+  HoppRESTAuth,
+  HoppRESTAuthAWSSignature,
+  HoppRESTAuthOAuth2,
+} from "@hoppscotch/data"
 
 const t = useI18n()
 
@@ -236,15 +240,23 @@ const selectAPIKeyAuthType = () => {
 }
 
 const selectAWSSignatureAuthType = () => {
+  const {
+    accessKey = "",
+    secretKey = "",
+    region = "",
+    serviceName = "",
+    addTo = "HEADERS",
+  } = auth.value as HoppRESTAuthAWSSignature
+
   auth.value = {
     ...auth.value,
     authType: "aws-signature",
-    addTo: "HEADERS",
-    accessKey: "",
-    secretKey: "",
-    region: "",
-    serviceName: "",
-  } as HoppRESTAuth
+    addTo,
+    accessKey,
+    secretKey,
+    region,
+    serviceName,
+  }
 }
 
 const authTypes: AuthType[] = [

@@ -188,6 +188,7 @@ import IconExternalLink from "~icons/lucide/external-link"
 import IconHelpCircle from "~icons/lucide/help-circle"
 import IconTrash2 from "~icons/lucide/trash-2"
 
+import { HoppGQLAuthAWSSignature } from "@hoppscotch/data/dist/graphql/v/6"
 import { getDefaultAuthCodeOauthFlowParams } from "~/services/oauth/flows/authCode"
 
 type AuthType = {
@@ -255,15 +256,23 @@ const selectAPIKeyAuthType = () => {
 }
 
 const selectAWSSignatureAuthType = () => {
+  const {
+    accessKey = "",
+    secretKey = "",
+    region = "",
+    serviceName = "",
+    addTo = "HEADERS",
+  } = auth.value as HoppGQLAuthAWSSignature
+
   auth.value = {
     ...auth.value,
     authType: "aws-signature",
-    addTo: "HEADERS",
-    accessKey: "",
-    secretKey: "",
-    region: "",
-    serviceName: "",
-  } as HoppGQLAuth
+    addTo,
+    accessKey,
+    secretKey,
+    region,
+    serviceName,
+  }
 }
 
 const authTypes: AuthType[] = [

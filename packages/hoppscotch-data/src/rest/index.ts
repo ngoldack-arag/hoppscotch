@@ -14,8 +14,9 @@ import V4_VERSION from "./v/4"
 import V5_VERSION from "./v/5"
 import V6_VERSION, { HoppRESTReqBody } from "./v/6"
 import V7_VERSION, { HoppRESTAuth } from "./v/7"
+import V8_VERSION from "./v/8"
 
-import { HoppRESTParams, HoppRESTHeaders } from "./v/7"
+import { HoppRESTHeaders, HoppRESTParams } from "./v/7"
 
 export * from "./content-types"
 
@@ -52,7 +53,7 @@ const versionedObject = z.object({
 })
 
 export const HoppRESTRequest = createVersionedEntity({
-  latestVersion: 7,
+  latestVersion: 8,
   versionMap: {
     0: V0_VERSION,
     1: V1_VERSION,
@@ -62,6 +63,7 @@ export const HoppRESTRequest = createVersionedEntity({
     5: V5_VERSION,
     6: V6_VERSION,
     7: V7_VERSION,
+    8: V8_VERSION,
   },
   getVersion(data) {
     // For V1 onwards we have the v string storing the number
@@ -103,7 +105,7 @@ const HoppRESTRequestEq = Eq.struct<HoppRESTRequest>({
   ),
 })
 
-export const RESTReqSchemaVersion = "7"
+export const RESTReqSchemaVersion = "8"
 
 export type HoppRESTParam = HoppRESTRequest["params"][number]
 export type HoppRESTHeader = HoppRESTRequest["headers"][number]

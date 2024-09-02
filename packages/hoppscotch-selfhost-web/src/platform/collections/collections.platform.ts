@@ -50,7 +50,9 @@ import { runGQLSubscription } from "@hoppscotch/common/helpers/backend/GQLClient
 import {
   GQLHeader,
   HoppCollection,
+  HoppGQLAuth,
   HoppGQLRequest,
+  HoppRESTAuth,
   HoppRESTHeaders,
   HoppRESTParam,
   HoppRESTRequest,
@@ -103,6 +105,31 @@ type ExportedUserCollectionGQL = {
   data: string
 }
 
+// Helper function to apply necessary migrations to the `auth` field at the request/collection level
+function migrateAuthField(auth: HoppRESTAuth | HoppGQLAuth) {
+  // Apply default values for the fields under AWS Signature Authorization type
+  if (auth.authType === "aws-signature") {
+    const {
+      accessKey = "",
+      secretKey = "",
+      region = "",
+      serviceName = "",
+    } = auth
+
+    return {
+      ...auth,
+      accessKey,
+      secretKey,
+      region,
+      serviceName,
+      addTo: "HEADERS" as const,
+    }
+  }
+
+  return auth
+}
+
+// Helper function to add `description` field to the incoming headers/params
 function addDescriptionField(
   candidate: HoppRESTHeaders | GQLHeader[] | HoppRESTParam[]
 ) {
@@ -129,7 +156,7 @@ function exportedCollectionToHoppCollection(
 
     return {
       id: restCollection.id,
-      v: 3,
+      v: 4,
       name: restCollection.name,
       folders: restCollection.folders.map((folder) =>
         exportedCollectionToHoppCollection(folder, collectionType)
@@ -155,6 +182,7 @@ function exportedCollectionToHoppCollection(
           requestVariables,
         } = request
 
+        const resolvedAuth = migrateAuthField(auth)
         const resolvedParams = addDescriptionField(params)
         const resolvedHeaders = addDescriptionField(headers)
 
@@ -166,14 +194,14 @@ function exportedCollectionToHoppCollection(
           method,
           params: resolvedParams,
           requestVariables,
-          auth,
+          auth: resolvedAuth,
           headers: resolvedHeaders,
           body,
           preRequestScript,
           testScript,
         }
       }),
-      auth: data.auth,
+      auth: migrateAuthField(data.auth),
       headers: addDescriptionField(data.headers),
     }
   } else {
@@ -189,7 +217,7 @@ function exportedCollectionToHoppCollection(
 
     return {
       id: gqlCollection.id,
-      v: 3,
+      v: 4,
       name: gqlCollection.name,
       folders: gqlCollection.folders.map((folder) =>
         exportedCollectionToHoppCollection(folder, collectionType)
@@ -215,7 +243,7 @@ function exportedCollectionToHoppCollection(
           variables,
         }
       }),
-      auth: data.auth,
+      auth: migrateAuthField(data.auth),
       headers: addDescriptionField(data.headers),
     }
   }
@@ -377,16 +405,16 @@ function setupUserCollectionCreatedSubscription() {
                 name: res.right.userCollectionCreated.title,
                 folders: [],
                 requests: [],
-                v: 3,
-                auth: data.auth,
+                v: 4,
+                auth: migrateAuthField(data.auth),
                 headers: addDescriptionField(data.headers),
               })
             : addRESTCollection({
                 name: res.right.userCollectionCreated.title,
                 folders: [],
                 requests: [],
-                v: 3,
-                auth: data.auth,
+                v: 4,
+                auth: migrateAuthField(data.auth),
                 headers: addDescriptionField(data.headers),
               })
 
