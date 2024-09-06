@@ -43,11 +43,11 @@ export function getTransportOption(env, config): TransportType {
         user:
           env.INFRA.MAILER_SMTP_USER ??
           config.get('MAILER_SMTP_USER') ??
-          throwErr(MAILER_SMTP_USER_UNDEFINED),
+          ''
         pass:
           env.INFRA.MAILER_SMTP_PASSWORD ??
           config.get('MAILER_SMTP_PASSWORD') ??
-          throwErr(MAILER_SMTP_PASSWORD_UNDEFINED),
+          ''
       },
       tls: {
         rejectUnauthorized:
